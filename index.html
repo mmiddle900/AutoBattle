@@ -96,17 +96,22 @@ function nextRound(){if(phase!=='result')return;round++;gold+=income;income+=2;u
 function attack(a,t){a.cd=a.rate;sfx(a.enemy&&a.kind==='archer'?'shot':a.damage>1000?'heavy':'swing');if(a.enemy&&a.kind==='archer'){let dx=t.x-a.x,dy=t.y-a.y,d=Math.hypot(dx,dy)||1;shots.push({x:a.x,y:a.y,vx:dx/d*600,vy:dy/d*600,damage:a.damage,speed:600,fromEnemy:true,straight:true,life:5,color:'#ff9b83'});return}if(a.enemy&&a.kind==='knight'){t.hp-=a.damage;impact(t.x,t.y,true);floatText(t.x,t.y-24,'기절','#ffb0a3',14);t.silenced=1;say('제국 기사의 타격! 아군 '+t.name+' 공격 봉쇄 1초');if(t.hp<=0)killTarget(t);return}if(a.enemy){t.hp-=a.damage;impact(t.x,t.y,a.damage>1000);floatText(t.x,t.y-22,'-'+a.damage,'#ff9a8d',14);if(t.hp<=0)killTarget(t);return}if(a.range>65){shots.push({x:a.x,y:a.y,target:t,damage:a.damage,speed:310,fromEnemy:false,color:'#ffe18b'})}else{t.hp-=a.damage;impact(t.x,t.y,a.damage>1000);floatText(t.x,t.y-22,'-'+a.damage,'#ffe39a',14);if(t.hp<=0)killTarget(t)}}
 function killTarget(t){burst(t.x,t.y,'#fff0b0',26,220);floatText(t.x,t.y-28,'+1G','#ffe18b',18);sfx('kill');if(enemies.includes(t)){enemies=enemies.filter(e=>e!==t);gold+=1;say('노획! 적 처치 +1G')}else if(units.includes(t)){units=units.filter(u=>u!==t);renderBench()}hud()}
 function resolveCharacterCollisions(allies,enemies){
- const bodies=[...allies.filter(u=>u.placed&&u.hp>0).map(u=>({unit:u,r:18})),...enemies.filter(e=>e.hp>0).map(e=>({unit:e,r:e.r||15}))];
- for(let pass=0;pass<4;pass++){
+ // 모든 아군과 적군을 하나의 충돌 목록으로 묶어 세 종류의 조합에 충돌을 적용한다.
+ const bodies=[
+  ...allies.filter(u=>u.placed&&u.hp>0).map(u=>({unit:u,r:18})),
+  ...enemies.filter(e=>e.hp>0).map(e=>({unit:e,r:e.r||16}))
+ ];
+ // 여러 번 반복해 여러 캐릭터가 모였을 때도 겹침을 해소한다.
+ for(let pass=0;pass<8;pass++){
   for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++){
    const a=bodies[i],b=bodies[j],dx=b.unit.x-a.unit.x,dy=b.unit.y-a.unit.y;
-   let d=Math.hypot(dx,dy),min=a.r+b.r;
-   if(d>=min)continue;
-   if(d<.001){const angle=((a.unit.id*31+b.unit.id*17)%360)*Math.PI/180;const nx=Math.cos(angle),ny=Math.sin(angle);
-    a.unit.x-=nx*min*.25;a.unit.y-=ny*min*.25;b.unit.x+=nx*min*.25;b.unit.y+=ny*min*.25;
-   }else{const push=(min-d)*.5,nx=dx/d,ny=dy/d;
-    a.unit.x-=nx*push;a.unit.y-=ny*push;b.unit.x+=nx*push;b.unit.y+=ny*push;
-   }
+   const min=a.r+b.r,d2=dx*dx+dy*dy;
+   if(d2>=min*min)continue;
+   let d=Math.sqrt(d2),nx,ny;
+   if(d<.001){const angle=(((a.unit.id||i+1)*31+(b.unit.id||j+1)*17)%360)*Math.PI/180;nx=Math.cos(angle);ny=Math.sin(angle);d=0}
+   else{nx=dx/d;ny=dy/d}
+   const push=(min-d)*.52;
+   a.unit.x-=nx*push;a.unit.y-=ny*push;b.unit.x+=nx*push;b.unit.y+=ny*push;
    a.unit.x=clamp(a.unit.x,a.r,W-a.r);a.unit.y=clamp(a.unit.y,a.r,H-a.r);
    b.unit.x=clamp(b.unit.x,b.r,W-b.r);b.unit.y=clamp(b.unit.y,b.r,H-b.r);
   }
