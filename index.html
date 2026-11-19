@@ -35,7 +35,7 @@
    • 노획: 적 처치마다 +1G<br>
    • 인컴: 준비 단계 시작 시 현재 인컴만큼 지급<br>
    • 인컴 성장: 라운드마다 +2 (라운드당 증가량 최대 +5)<br>
-   • 상점 확률: 일반 70% · 희귀 25% · 레어 5%<br>
+   • 상점 확률: 일반 85% · 희귀 10% · 레어 5%<br>
    • 등급: 일반 → 희귀 → 레어 → 영웅 → 전설<br>
    • 최대 배치: 5명. 전투불능 유닛은 배치 인원에서 제외
   </section>
@@ -61,7 +61,7 @@ function say(s){$('log').textContent=s}
 function hud(){$('round').textContent=round;$('gold').textContent=gold;$('income').textContent=income;$('deployed').textContent=units.filter(u=>u.placed&&u.hp>0).length+' / 5'}
 function statsFor(type,tier){let d=roster[type],m=Math.pow(1.55,tier)*25;return {maxHp:Math.round(d.hp*m),damage:Math.round(d.damage*m),range:d.range,rate:d.rate,speed:d.speed}}
 function makeUnit(type,grade=0){let s=statsFor(type,grade);return {id:++uid,type,grade,name:roster[type].name,emoji:roster[type].emoji,hp:s.maxHp,maxHp:s.maxHp,damage:s.damage,range:s.range,rate:s.rate,speed:s.speed,cd:Math.random()*.5,placed:false,x:W/2,y:520}}
-function rollGrade(){let n=Math.random();return n<.70?0:n<.95?1:2}
+function rollGrade(){let n=Math.random();return n<.85?0:n<.95?1:2}
 function makeShop(){shop=Array.from({length:3},()=>({type:rand(roster.length),grade:rollGrade()}));renderShop()}
 function renderShop(){let el=$('shop');el.replaceChildren();shop.forEach((s,i)=>{let card=document.createElement('div');card.className='shopCard';if(!s){card.innerHTML='<strong>구매 완료</strong><small>다음 라운드에 갱신</small>';card.style.opacity='.55';el.append(card);return}let d=roster[s.type];card.innerHTML='<span class="grade" style="color:'+gradeColors[s.grade]+'">'+grades[s.grade]+'</span><strong>'+d.emoji+' '+d.name+'</strong><small>구매 15G</small><small>HP '+Math.round(d.hp*Math.pow(1.55,s.grade)*25)+' · 공격 '+Math.round(d.damage*Math.pow(1.55,s.grade)*25)+'</small>';card.onclick=()=>buy(i);el.append(card)})}
 function buy(i){if(phase!=='prep')return;if(gold<15)return say('골드가 부족합니다.');if(units.length>=20)return say('보유 유닛 공간이 가득 찼습니다.');let s=shop[i];gold-=15;units.push(makeUnit(s.type,s.grade));shop[i]=null;renderShop();renderBench();hud();say(roster[s.type].name+' 구매 완료! 전장으로 끌어 배치하세요.')}
