@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auto Defense</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101a20;color:#edf4ef;font:15px system-ui,sans-serif;display:flex;justify-content:center;padding:20px}
+main{width:min(900px,100%)}h1{margin:0 0 12px;font-size:26px}.stats,.controls{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.stat{background:#1c2b32;border:1px solid #34464c;border-radius:10px;padding:10px 14px;flex:1;min-width:100px}.stat small{display:block;color:#9fb2b3}.stat b{font-size:22px}canvas{width:100%;height:auto;display:block;border:1px solid #49615a;border-radius:12px;background:#20372d;touch-action:manipulation}button{background:#263d42;color:#f5faf6;border:1px solid #58716c;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer}button:hover{background:#35534d}button:disabled{opacity:.45;cursor:not-allowed}.active{background:#37664e}.roster{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px}.unit{background:#1c2b32;border:1px solid #34464c;border-radius:9px;padding:9px}.unit b{display:block}.log{background:#1c2b32;border-radius:9px;padding:12px;margin:12px 0;color:#c8ded2;min-height:42px}
+</style>
+</head>
+<body><main>
+<h1>⚔️ AUTO DEFENSE</h1>
+<div class="stats"><div class="stat"><small>WAVE</small><b id="wave">1</b></div><div class="stat"><small>GOLD</small><b id="gold">30</b></div><div class="stat"><small>BASE HP</small><b id="base">100</b></div><div class="stat"><small>아군</small><b id="count">0 / 12</b></div></div>
+<canvas id="arena" width="720" height="820" aria-label="실시간 탑뷰 전투 경기장"></canvas>
+<div class="controls"><button id="summon">＋ 유닛 소환 · 10G</button><button id="merge">3개 합성</button><button id="pause">Ⅱ 일시정지</button><button id="speed" class="active">2× 속도</button><button id="restart">새 게임</button></div>
+<div class="log" id="log">유닛을 소환하면 자동으로 적을 찾아 공격합니다.</div>
+<h2>아군 군단</h2><div class="roster" id="roster"></div>
+</main>
+<script>
+(()=>{
+const $=id=>document.getElementById(id),canvas=$('arena'),ctx=canvas.getContext('2d');
+const W=720,H=820,types=[
+{name:'검사',emoji:'⚔️',hp:145,dmg:19,range:48,rate:.8,speed:52,color:'#e8c46f'},
+{name:'궁수',emoji:'🏹',hp:90,dmg:15,range:180,rate:1.15,speed:38,color:'#82c78c'},
+{name:'마법사',emoji:'🔮',hp:78,dmg:31,range:145,rate:1.65,speed:28,color:'#b69af5'},
+{name:'기사',emoji:'🛡️',hp:245,dmg:23,range:52,rate:1.15,speed:30,color:'#a9cbdc'},
+{name:'골렘',emoji:'🪨',hp:380,dmg:40,range:58,rate:2,speed:20,color:'#a5aaa1'}];
+let gold=30,wave=1,base=100,units=[],enemies=[],shots=[],particles=[],paused=false,fast=true,spawn=0,last=0,elapsed=0,kills=0,gameover=false,uid=0;
+const rand=n=>Math.floor(Math.random()*n),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function say(s){$('log').textContent=s}
+function hud(){$('wave').textContent=wave;$('gold').textContent=gold;$('base').textContent=base;$('count').textContent=units.length+' / 12'}
+function roster(){const el=$('roster');el.replaceChildren();units.forEach(u=>{let d=document.createElement('div');d.className='unit';d.innerHTML='<b>'+u.emoji+' '+u.name+' ★'+u.tier+'</b><small>HP '+Math.max(0,Math.ceil(u.hp))+'/'+Math.ceil(u.max)+'</small><small>攻擊 '+Math.round(u.dmg*u.tier)+'</small>';el.append(d)})}
+function summon(){if(gameover)return;if(gold<10)return say('골드가 부족합니다.');if(units.length>=12)return say('아군 배치 공간이 가득 찼습니다.');gold-=10;let t=rand(types.length),d=types[t];units.push({...d,type:t,id:++uid,tier:1,max:d.hp,hp:d.hp,x:90+rand(540),y:625+rand(115),cd:Math.random()*.5});say(d.name+' 소환!');hud();roster()}
+function merge(){for(let t=0;t<types.length;t++){let a=units.filter(u=>u.type===t);if(a.length>=3){let keep=a[0];units=units.filter(u=>u!==a[0]&&u!==a[1]&&u!==a[2]);let tier=keep.tier+1;units.push({...keep,tier,max:keep.max*1.75,hp:keep.max*1.75,dmg:keep.dmg*1.7});say(keep.name+' ★'+tier+' 합성 성공!');hud();roster();return}}say('동일한 유닛 3개가 필요합니다.')}
+function spawnEnemy(){let boss=wave%5===0&&Math.random()<.38,hp=(42+wave*15)*(boss?4:1);enemies.push({id:++uid,x:65+rand(590),y:65,hp,max:hp,dmg:(8+wave*1.4)*(boss?1.8:1),speed:(25+Math.min(wave,35)*.55)*(boss?.72:1),r:boss?25:14,boss,cd:0})}
+function projectile(u,e){u.cd=u.rate;shots.push({x:u.x,y:u.y,tx:e.x,ty:e.y,target:e,damage:u.dmg*u.tier,speed:390,color:u.color})}
+function update(dt){if(paused||gameover)return;elapsed+=dt;spawn-=dt;if(spawn<=0&&enemies.length<45){spawn=Math.max(.45,2.5-wave*.065);spawnEnemy();if(wave>3&&Math.random()<.2)spawnEnemy()}
+ for(const u of units){u.cd-=dt;let target=null,dist=Infinity;for(const e of enemies){let d=Math.hypot(e.x-u.x,e.y-u.y);if(d<dist){dist=d;target=e}}if(!target)continue;if(dist>u.range*.85){let step=u.speed*dt,dx=(target.x-u.x)/dist,dy=(target.y-u.y)/dist;u.x=clamp(u.x+dx*step,24,W-24);u.y=clamp(u.y+dy*step,470,H-45)}else if(u.cd<=0)projectile(u,target)}
+ for(const e of enemies){let target=null,dmin=Infinity;for(const u of units){let d=Math.hypot(u.x-e.x,u.y-e.y);if(d<dmin){dmin=d;target=u}}if(target&&dmin<34){e.cd-=dt;if(e.cd<=0){target.hp-=e.dmg;e.cd=.85;if(target.hp<=0){units=units.filter(u=>u!==target);roster()}}}else e.y+=e.speed*dt;if(e.y>760){base=Math.max(0,base-(e.boss?25:10));e.hp=0}}
+ for(const s of shots){if(!enemies.includes(s.target)){s.dead=true;continue}let dx=s.target.x-s.x,dy=s.target.y-s.y,d=Math.hypot(dx,dy),step=s.speed*dt;if(d<step+s.target.r){s.target.hp-=s.damage;s.dead=true;for(let i=0;i<5;i++)particles.push({x:s.target.x,y:s.target.y,vx:(Math.random()-.5)*85,vy:(Math.random()-.5)*85,life:.3,color:s.color})}else{s.x+=dx/d*step;s.y+=dy/d*step}}
+ shots=shots.filter(s=>!s.dead);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}particles=particles.filter(p=>p.life>0);
+ let dead=enemies.filter(e=>e.hp<=0);if(dead.length){kills+=dead.length;gold+=dead.length*2;enemies=enemies.filter(e=>e.hp>0)}if(kills>=wave*4&&enemies.length===0){kills=0;gold+=15;wave++;say('웨이브 방어 성공! 다음 웨이브 '+wave+' · 보상 +15G')}
+ if(base<=0){base=0;gameover=true;paused=true;say('기지 방어 실패! 새 게임으로 다시 도전하세요.')}hud();if(Math.floor(elapsed)%2===0)roster()}
+function draw(){ctx.clearRect(0,0,W,H);ctx.fillStyle='#233d31';ctx.fillRect(0,0,W,H);
+ for(let y=0;y<H;y+=48)for(let x=0;x<W;x+=48){ctx.fillStyle=((x/48+y/48)%2)?'#294738':'#2d4b3a';ctx.fillRect(x,y,47,47)}
+ ctx.fillStyle='#263e55';ctx.fillRect(0,0,W,45);ctx.fillStyle='#d0e5f3';ctx.font='bold 19px system-ui';ctx.fillText('ENEMY TERRITORY',18,30);
+ ctx.fillStyle='#426c4b';ctx.fillRect(0,560,W,260);ctx.fillStyle='#d3e8c8';ctx.fillText('ALLY TERRITORY',18,588);
+ ctx.strokeStyle='#a8c8a0';ctx.setLineDash([8,9]);ctx.beginPath();ctx.moveTo(0,455);ctx.lineTo(W,455);ctx.stroke();ctx.setLineDash([]);
+ for(const e of enemies){ctx.fillStyle=e.boss?'#a84349':'#c16e62';ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#f5c5ad';ctx.lineWidth=2;ctx.stroke();ctx.font=e.boss?'24px system-ui':'18px system-ui';ctx.textAlign='center';ctx.fillText(e.boss?'👹':'👾',e.x,e.y+6);ctx.fillStyle='#512c30';ctx.fillRect(e.x-22,e.y-e.r-12,44,5);ctx.fillStyle='#85dc91';ctx.fillRect(e.x-22,e.y-e.r-12,44*clamp(e.hp/e.max,0,1),5)}
+ for(const u of units){ctx.fillStyle=u.color;ctx.beginPath();ctx.arc(u.x,u.y,17+Math.min(6,u.tier*2),0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.font='20px system-ui';ctx.textAlign='center';ctx.fillStyle='#14251e';ctx.fillText(u.emoji,u.x,u.y+7);ctx.fillStyle='#15241e';ctx.fillRect(u.x-20,u.y+22,40,5);ctx.fillStyle='#83e19a';ctx.fillRect(u.x-20,u.y+22,40*clamp(u.hp/u.max,0,1),5);if(u.tier>1){ctx.fillStyle='#fff';ctx.font='12px system-ui';ctx.fillText('★'+u.tier,u.x,u.y-25)}}
+ for(const s of shots){ctx.fillStyle=s.color;ctx.beginPath();ctx.arc(s.x,s.y,5,0,Math.PI*2);ctx.fill()}for(const p of particles){ctx.globalAlpha=clamp(p.life/.3,0,1);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,4,4);ctx.globalAlpha=1}
+ if(paused){ctx.fillStyle='#06100dcc';ctx.fillRect(0,0,W,H);ctx.fillStyle='#fff';ctx.font='bold 38px system-ui';ctx.textAlign='center';ctx.fillText(gameover?'GAME OVER':'PAUSED',W/2,H/2)}ctx.textAlign='left'}
+function loop(ts){let dt=Math.min(.05,(ts-last)/1000||0);last=ts;update(dt*(fast?2:1));draw();requestAnimationFrame(loop)}
+$('summon').onclick=summon;$('merge').onclick=merge;$('pause').onclick=()=>{if(gameover)return;paused=!paused;$('pause').textContent=paused?'▶ 재개':'Ⅱ 일시정지'};$('speed').onclick=()=>{fast=!fast;$('speed').textContent=fast?'2× 속도':'1× 속도';$('speed').classList.toggle('active',fast)};
+$('restart').onclick=()=>{gold=30;wave=1;base=100;units=[];enemies=[];shots=[];particles=[];paused=false;fast=true;spawn=0;kills=0;elapsed=0;gameover=false;$('pause').textContent='Ⅱ 일시정지';$('speed').textContent='2× 속도';$('speed').classList.add('active');say('새 전투가 시작되었습니다.');hud();roster()};
+hud();roster();requestAnimationFrame(loop);
+})();
+</script></body></html>
